@@ -20,22 +20,48 @@
 
   connection.onmessage = (message) => {
     try {
-      const messageBody = JSON.parse(message.data);
-      if (messageBody.id && messageBody.color) {
-        const cursor = getOrCreateCursor(messageBody);
-        cursor.style.transform = `translate(${messageBody.x}px, ${messageBody.y}px)`;
-      } else {
-        console.error(
-          "Message body is missing id or color of cursor, " + messageBody,
-        );
+      const data = JSON.parse(message.data);
+      if (!data.cursor) {
+        console.error("cursor data missing");
+        return;
+      }
+
+      console.log(data);
+
+      const cursorData = data.cursor;
+      switch (data.type) {
+        case "remove":
+          if (cursorData.id && cursorData.color) {
+            const cursor = getOrCreateCursor(cursorData);
+            cursor.remove();
+          } else {
+            console.error(
+              "Cursor data needs id and color, but some are missing... " +
+                cursorData,
+            );
+          }
+          break;
+        case "move":
+          if (cursorData.id && cursorData.color) {
+            const cursor = getOrCreateCursor(cursorData);
+            cursor.style.transform = `translate(${cursorData.x}px, ${cursorData.y}px)`;
+          } else {
+            console.error(
+              "Cursor data needs id and color, but some are missing... " +
+                cursorData,
+            );
+          }
+          break;
+        default:
+          console.log("Not supported message type");
       }
     } catch (err) {
       console.error("Error parsing message body, ", err);
     }
   };
 
-  function getOrCreateCursor(messageBody) {
-    const sender = messageBody.id;
+  function getOrCreateCursor(cursorData) {
+    const sender = cursorData.id;
     const existing = document.querySelector(`[data-sender='${sender}']`);
     if (existing) {
       return existing;
@@ -46,7 +72,7 @@
     const svgPath = cursor.getElementsByTagName("path")[0];
 
     cursor.setAttribute("data-sender", sender);
-    svgPath.setAttribute("fill", messageBody.color);
+    svgPath.setAttribute("fill", cursorData.color);
     document.body.appendChild(cursor);
 
     return cursor;

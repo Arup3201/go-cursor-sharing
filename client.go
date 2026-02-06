@@ -36,15 +36,23 @@ type Cursor struct {
 	Color string `json:"color"`
 }
 
+type Message struct {
+	Type   string  `json:"type"`
+	Cursor *Cursor `json:"cursor"`
+}
+
 type Client struct {
 	id    string
 	color string
+
+	// for cleanup purpose
+	lastX, lastY int
 
 	conn *websocket.Conn
 
 	hub *Hub
 
-	send chan Cursor
+	send chan Message
 }
 
 // readPump pumps messages from client websocket to hub
@@ -77,7 +85,15 @@ func (c *Client) readPump() {
 		cursor.Id = c.id
 		cursor.Color = c.color
 
-		c.hub.broadcast <- cursor
+		c.lastX = cursor.X
+		c.lastY = cursor.Y
+
+		data := Message{
+			Type:   "move",
+			Cursor: &cursor,
+		}
+
+		c.hub.broadcast <- data
 	}
 }
 
@@ -143,7 +159,7 @@ func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 		color: hexColor,
 		conn:  conn,
 		hub:   hub,
-		send:  make(chan Cursor),
+		send:  make(chan Message),
 	}
 
 	hub.register <- client

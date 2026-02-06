@@ -7,7 +7,7 @@ type Hub struct {
 
 	clients map[string]*Client
 
-	broadcast chan Cursor
+	broadcast chan Message
 }
 
 func newHub() *Hub {
@@ -15,7 +15,7 @@ func newHub() *Hub {
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
 		clients:    make(map[string]*Client),
-		broadcast:  make(chan Cursor),
+		broadcast:  make(chan Message),
 	}
 }
 
@@ -28,15 +28,32 @@ func (h *Hub) run() {
 			if _, ok := h.clients[client.id]; ok {
 				delete(h.clients, client.id)
 				close(client.send)
+
+				message := Message{
+					Type: "remove",
+					Cursor: &Cursor{
+						Id:    client.id,
+						Color: client.color,
+						X:     client.lastX,
+						Y:     client.lastY,
+					},
+				}
+
+				for _, client := range h.clients {
+					select {
+					case client.send <- message:
+					default: // don't block for slow clients
+					}
+				}
 			}
-		case cursor := <-h.broadcast:
+		case message := <-h.broadcast:
 			for _, client := range h.clients {
-				if client.id == cursor.Id {
+				if client.id == message.Cursor.Id {
 					continue
 				}
 
 				select {
-				case client.send <- cursor:
+				case client.send <- message:
 				default:
 					close(client.send)
 					delete(h.clients, client.id)
