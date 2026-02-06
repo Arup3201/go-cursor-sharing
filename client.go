@@ -44,7 +44,7 @@ type Client struct {
 
 	hub *Hub
 
-	send chan []byte
+	send chan Cursor
 }
 
 // readPump pumps messages from client websocket to hub
@@ -76,12 +76,8 @@ func (c *Client) readPump() {
 
 		cursor.Id = c.id
 		cursor.Color = c.color
-		if message, err = json.Marshal(cursor); err != nil {
-			log.Printf("[ERROR] json marshal cursor to message: %s\n", err)
-			continue
-		}
 
-		c.hub.broadcast <- message
+		c.hub.broadcast <- cursor
 	}
 }
 
@@ -94,7 +90,7 @@ func (c *Client) writePump() {
 	}()
 	for {
 		select {
-		case message, ok := <-c.send:
+		case cursor, ok := <-c.send:
 			c.conn.SetWriteDeadline(time.Now().Add(WRITE_WAIT))
 
 			if !ok {
@@ -107,6 +103,12 @@ func (c *Client) writePump() {
 			if err != nil {
 				log.Printf("[ERROR] connection next writer: %s", err)
 				return
+			}
+
+			message, err := json.Marshal(cursor)
+			if err != nil {
+				log.Printf("[ERROR] json marshal cursor to message: %s\n", err)
+				continue
 			}
 
 			w.Write(message)
@@ -141,7 +143,7 @@ func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 		color: hexColor,
 		conn:  conn,
 		hub:   hub,
-		send:  make(chan []byte),
+		send:  make(chan Cursor),
 	}
 
 	hub.register <- client
