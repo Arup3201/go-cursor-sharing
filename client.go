@@ -13,7 +13,10 @@ import (
 )
 
 const (
-	WRITE_WAIT = 10 * time.Second
+	WRITE_WAIT    = 10 * time.Second
+	PONG_INTERVAL = 60 * time.Second
+	PING_INTERVAL = PONG_INTERVAL * 9 / 10
+	MESSAGE_LIMIT = 255
 )
 
 var upgrader = websocket.Upgrader{
@@ -50,6 +53,14 @@ func (c *Client) readPump() {
 		c.hub.unregister <- c
 		c.conn.Close()
 	}()
+
+	c.conn.SetReadLimit(MESSAGE_LIMIT)
+	c.conn.SetReadDeadline(time.Now().Add(PONG_INTERVAL))
+	c.conn.SetPongHandler(func(appData string) error {
+		c.conn.SetReadDeadline(time.Now().Add(PONG_INTERVAL))
+		return nil
+	})
+
 	for {
 		_, message, err := c.conn.ReadMessage()
 		if err != nil {
@@ -76,7 +87,7 @@ func (c *Client) readPump() {
 
 // writePump pumps messages from the hub to the client websocket
 func (c *Client) writePump() {
-	ticker := time.NewTicker(WRITE_WAIT)
+	ticker := time.NewTicker(PING_INTERVAL)
 	defer func() {
 		ticker.Stop()
 		c.conn.Close()
@@ -84,6 +95,8 @@ func (c *Client) writePump() {
 	for {
 		select {
 		case message, ok := <-c.send:
+			c.conn.SetWriteDeadline(time.Now().Add(WRITE_WAIT))
+
 			if !ok {
 				// hub closed the connection
 				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
@@ -103,6 +116,7 @@ func (c *Client) writePump() {
 				return
 			}
 		case <-ticker.C:
+			c.conn.SetWriteDeadline(time.Now().Add(WRITE_WAIT))
 			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 				return
 			}
