@@ -20,7 +20,6 @@
 
   connection.onmessage = (message) => {
     try {
-      console.log(message.data);
       const messageBody = JSON.parse(message.data);
       if (messageBody.id && messageBody.color) {
         const cursor = getOrCreateCursor(messageBody);
@@ -47,7 +46,6 @@
     const svgPath = cursor.getElementsByTagName("path")[0];
 
     cursor.setAttribute("data-sender", sender);
-    console.log(messageBody.color);
     svgPath.setAttribute("fill", messageBody.color);
     document.body.appendChild(cursor);
 
